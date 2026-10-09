@@ -116,9 +116,9 @@ test_espresso_phonon_dos:
   workDir: fixtures/espresso/v6_5/test-004
   stdoutFile: fixtures/espresso/v6_5/test-004/pw_scf.out
 
-test_espresso_phonon_dispersion:
-  workDir: fixtures/espresso/v6_5/test-004
-  stdoutFile: fixtures/espresso/v6_5/test-004/pw_scf.out
+test_espresso_phonon_dispersions:
+  workDir: fixtures/espresso/v6_5/test-010
+  stdoutFile: fixtures/espresso/v6_5/test-010/normal_modes.out
 
 test_structure_espresso_basis:
   structurePath: fixtures/espresso/v6_5/test-006/pw_scf.in
