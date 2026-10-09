@@ -244,7 +244,9 @@ class EspressoParser(BaseParser, IonicDataMixin, ElectronicDataMixin, Reciprocal
         Reference:
             func: express.parsers.mixins.ionic.IonicDataMixin.phonon_dispersions
         """
-        return self.txt_parser.phonon_dispersions()
+        data = self.txt_parser.phonon_dispersions()
+        data["qpoints"] = np.dot(data["qpoints"], self.xml_parser.get_inverse_reciprocal_lattice_vectors()).tolist()
+        return data
 
     def _find_neb_dat_file(self):
         neb_path_file = find_file(NEB_PATH_FILE_SUFFIX, self.work_dir)
