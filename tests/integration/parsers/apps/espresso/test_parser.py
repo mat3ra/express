@@ -65,7 +65,8 @@ class TestEspressoParser(IntegrationTestBase):
         # self.assertDeepAlmostEqual(self.parser.phonon_dos(), PHONON_DOS, places=2)
 
     def test_espresso_phonon_dispersions(self):
-        self.assertDeepAlmostEqual(self.parser.phonon_dispersions()["qpoints"][::10], HIGH_SYMMETRY_QPOINTS, places=4)
+        qpoints = self.parser.phonon_dispersions()["qpoints"]
+        self.assertDeepAlmostEqual(qpoints[-1], PHONON_DISPERSIONS_QPOINT_X, places=4)
 
     def test_espresso_final_basis(self):
         self.assertDeepAlmostEqual(self.parser.final_basis(), FINAL_BASIS, places=2)

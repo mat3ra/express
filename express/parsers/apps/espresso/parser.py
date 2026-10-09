@@ -241,6 +241,9 @@ class EspressoParser(BaseParser, IonicDataMixin, ElectronicDataMixin, Reciprocal
         """
         Returns phonon dispersions.
 
+        NOTE: q-points are returned in crystal coordinates, converted from matdyn's cartesian 2pi/alat units with the
+        reciprocal lattice from the pw.x XML (__prefix__.xml), so that file has to be in the work directory.
+
         Reference:
             func: express.parsers.mixins.ionic.IonicDataMixin.phonon_dispersions
         """
