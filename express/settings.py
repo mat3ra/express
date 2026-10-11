@@ -87,6 +87,7 @@ PARSERS_REGISTRY = {
     "espresso": "express.parsers.apps.espresso.parser.EspressoParser",
     "vasp": "express.parsers.apps.vasp.parser.VaspParser",
     "nwchem": "express.parsers.apps.nwchem.parser.NwchemParser",
+    "q3": "express.parsers.apps.q3.parser.Q3Parser",
     "structure": "express.parsers.structure.StructureParser",
 }
 
