@@ -2,7 +2,11 @@ from tests.unit import UnitTestBase
 
 from express.properties.non_scalar.non_scalar_property_context import NonScalarPropertyFromContext
 
-SCHOTTKY_BARRIER_HEIGHT_VALUE = {"units": "eV", "pType": 1.046, "nType": 0.596}
+SCHOTTKY_BARRIER_HEIGHT_VALUE = {
+    "units": "eV",
+    "pType": {"name": "p_type", "value": 1.046},
+    "nType": {"name": "n_type", "value": 0.596},
+}
 SCHOTTKY_BARRIER_HEIGHT = {"name": "schottky_barrier_height", **SCHOTTKY_BARRIER_HEIGHT_VALUE}
 
 
