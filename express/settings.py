@@ -26,6 +26,12 @@ SCALAR_PROPERTIES_MANIFEST = {
     "formation_energy": {"reference": "express.properties.scalar.scalar_property_context.ScalarPropertyFromContext"},
     "reaction_energy_barrier": {"reference": "express.properties.scalar.reaction_energy_barrier.ReactionEnergyBarrier"},
     "valence_band_offset": {"reference": "express.properties.scalar.scalar_property_context.ScalarPropertyFromContext"},
+    "schottky_barrier_height_p": {
+        "reference": "express.properties.scalar.scalar_property_context.ScalarPropertyFromContext"
+    },
+    "schottky_barrier_height_n": {
+        "reference": "express.properties.scalar.scalar_property_context.ScalarPropertyFromContext"
+    },
 }
 
 NON_SCALAR_PROPERTIES_MANIFEST = {
@@ -41,9 +47,6 @@ NON_SCALAR_PROPERTIES_MANIFEST = {
         "reference": "express.properties.non_scalar.total_energy_contributions.TotalEnergyContributions"
     },
     "formation_energy_contributions": {
-        "reference": "express.properties.non_scalar.non_scalar_property_context.NonScalarPropertyFromContext"
-    },
-    "schottky_barrier_height": {
         "reference": "express.properties.non_scalar.non_scalar_property_context.NonScalarPropertyFromContext"
     },
     "material": {"reference": "express.properties.material.Material"},
