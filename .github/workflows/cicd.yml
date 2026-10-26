@@ -67,7 +67,7 @@ jobs:
 
   publish:
     needs: [run-linter, run-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.ref_name == 'main'
 
     steps:
