@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from express.parsers import BaseParser
-from express.parsers.apps.q3.settings import RESULTS_FILE_SUFFIX
+from express.parsers.apps.q3.settings import DENSITY_OF_STATES_FILE, RESULTS_FILE_SUFFIX
 from express.parsers.mixins.electronic import ElectronicDataMixin
 from express.parsers.mixins.ionic import IonicDataMixin
 from express.parsers.mixins.reciprocal import ReciprocalDataMixin
@@ -165,6 +165,18 @@ def basis_from_material(material: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def density_of_states_in_electronvolts(density_of_states: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    q3 extract_dos output (energies in Ry, states/Ry) as the express dos() dictionary (eV, states/eV).
+    """
+    return {
+        "energy": [energy * Constant.Ry for energy in density_of_states["energies_ry"]],
+        "total": [value / Constant.Ry for value in density_of_states["dos"]],
+        "partial": [],
+        "partial_info": [],
+    }
+
+
 class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMixin):
     """
     Q3 parser class.
@@ -190,6 +202,16 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
             with open(results_file) as results_handle:
                 self._results = json.load(results_handle)
         return self._results
+
+    def _read_json_file(self, file_name: str) -> Dict[str, Any]:
+        """
+        Loads the JSON file file_name found under the working directory.
+        """
+        file_path = find_file(file_name, self.work_dir)
+        if not file_path:
+            raise FileNotFoundError(f"Could not find {file_name} under {self.work_dir}")
+        with open(file_path) as file_handle:
+            return json.load(file_handle)
 
     def _material(self) -> Dict[str, Any]:
         """
@@ -326,3 +348,13 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
             func: express.parsers.mixins.ionic.IonicDataMixin.final_basis
         """
         return self.initial_basis()
+
+    def dos(self):
+        """
+        Returns the total density of states written by the q3_dos shell unit. q3 does not project onto atomic
+        states, so the partial lists are empty.
+
+        Reference:
+            func: express.parsers.mixins.electronic.ElectronicDataMixin.dos
+        """
+        return density_of_states_in_electronvolts(self._read_json_file(DENSITY_OF_STATES_FILE))
