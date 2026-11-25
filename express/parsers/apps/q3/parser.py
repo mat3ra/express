@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from express.parsers import BaseParser
-from express.parsers.apps.q3.settings import DENSITY_OF_STATES_FILE, RESULTS_FILE_SUFFIX
+from express.parsers.apps.q3.settings import RESULTS_FILE_SUFFIX
 from express.parsers.mixins.electronic import ElectronicDataMixin
 from express.parsers.mixins.ionic import IonicDataMixin
 from express.parsers.mixins.reciprocal import ReciprocalDataMixin
@@ -15,12 +15,12 @@ from express.parsers.utils import find_file
 # quantity as an ESSE record whose units field names the source unit
 # (schemas/q3/results.json). A k-point channel with no spin is spin-up:
 # express looks channels up as 0.5 and then -0.5.
-ENERGY_UNIT_IN_ELECTRONVOLTS = {
+ENERGY_UNIT_IN_EV = {
     "Ry": Constant.Ry,
     "hartree": Constant.Ha,
     "eV": Constant.eV,
 }
-FORCE_UNIT_IN_ELECTRONVOLT_PER_ANGSTROM = {
+FORCE_UNIT_IN_EV_PER_ANGSTROM = {
     "Ry/a.u.": Constant.ry_bohr_to_eV_A,
     "eV/angstrom": 1.0,
 }
@@ -47,15 +47,15 @@ def conversion_factor(units: str, factors: Dict[str, float], quantity_name: str)
     return factor
 
 
-def energy_in_electronvolts(record: Dict[str, Any]) -> float:
+def energy_in_eV(record: Dict[str, Any]) -> float:
     """
     An ESSE energy record converted to eV.
     """
-    factor = conversion_factor(record["units"], ENERGY_UNIT_IN_ELECTRONVOLTS, record.get("name", "energy"))
+    factor = conversion_factor(record["units"], ENERGY_UNIT_IN_EV, record.get("name", "energy"))
     return record["value"] * factor
 
 
-def energy_contributions_in_electronvolts(record: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+def energy_contributions_in_eV(record: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     """
     ESSE total_energy_contributions terms, each value converted to eV.
     """
@@ -64,16 +64,16 @@ def energy_contributions_in_electronvolts(record: Dict[str, Any]) -> Dict[str, D
         if not isinstance(term, dict) or "value" not in term:
             continue
         units = term.get("units", record["units"])
-        factor = conversion_factor(units, ENERGY_UNIT_IN_ELECTRONVOLTS, key)
+        factor = conversion_factor(units, ENERGY_UNIT_IN_EV, key)
         contributions[key] = {"name": term.get("name", key), "value": term["value"] * factor}
     return contributions
 
 
-def convergence_energies_in_electronvolts(record: Dict[str, Any]) -> List[List[float]]:
+def convergence_energies_in_eV(record: Dict[str, Any]) -> List[List[float]]:
     """
     Total energy after each SCF iteration, in eV, one row per ionic step.
     """
-    factor = conversion_factor(record["units"], ENERGY_UNIT_IN_ELECTRONVOLTS, record["name"])
+    factor = conversion_factor(record["units"], ENERGY_UNIT_IN_EV, record["name"])
     rows = record["data"]
     if rows and not isinstance(rows[0], list):
         rows = [rows]
@@ -89,11 +89,11 @@ def value_in_kilobar(record: Dict[str, Any]):
     return record["value"]
 
 
-def atomic_forces_in_electronvolt_per_angstrom(record: Dict[str, Any]) -> List[List[float]]:
+def atomic_forces_in_eV_per_angstrom(record: Dict[str, Any]) -> List[List[float]]:
     """
     Forces ordered by atom id, in eV/angstrom.
     """
-    factor = conversion_factor(record["units"], FORCE_UNIT_IN_ELECTRONVOLT_PER_ANGSTROM, record["name"])
+    factor = conversion_factor(record["units"], FORCE_UNIT_IN_EV_PER_ANGSTROM, record["name"])
     ordered_atoms = sorted(record["values"], key=lambda atom: atom["id"])
     return [[component * factor for component in atom["value"]] for atom in ordered_atoms]
 
@@ -125,11 +125,11 @@ def eigenvalues_at_kpoint(kpoint: Dict[str, Any], energy_factor: float) -> Dict[
     return {"kpoint": list(kpoint["kpoint"]), "weight": kpoint["weight"], "eigenvalues": channels}
 
 
-def eigenvalues_in_electronvolts(record: Dict[str, Any]) -> List[Dict[str, Any]]:
+def eigenvalues_in_eV(record: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     eigenvalues_at_kpoints with energies in eV.
     """
-    factor = conversion_factor(record["units"], ENERGY_UNIT_IN_ELECTRONVOLTS, record["name"])
+    factor = conversion_factor(record["units"], ENERGY_UNIT_IN_EV, record["name"])
     return [eigenvalues_at_kpoint(kpoint, factor) for kpoint in record["values"]]
 
 
@@ -165,13 +165,16 @@ def basis_from_material(material: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def density_of_states_in_electronvolts(density_of_states: Dict[str, Any]) -> Dict[str, Any]:
+def density_of_states_in_eV(record: Dict[str, Any]) -> Dict[str, Any]:
     """
-    q3 extract_dos output (energies in Ry, states/Ry) as the express dos() dictionary (eV, states/eV).
+    The ESSE density_of_states record q3 writes (energy grid in xAxis units, one total series of states per that
+    energy unit per cell) as the express dos() dictionary (eV, states/eV).
     """
+    factor = conversion_factor(record["xAxis"]["units"], ENERGY_UNIT_IN_EV, "density_of_states")
+    (total,) = record["yDataSeries"]
     return {
-        "energy": [energy * Constant.Ry for energy in density_of_states["energies_ry"]],
-        "total": [value / Constant.Ry for value in density_of_states["dos"]],
+        "energy": [energy * factor for energy in record["xDataArray"]],
+        "total": [value / factor for value in total],
         "partial": [],
         "partial_info": [],
     }
@@ -203,16 +206,6 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
                 self._results = json.load(results_handle)
         return self._results
 
-    def _read_json_file(self, file_name: str) -> Dict[str, Any]:
-        """
-        Loads the JSON file file_name found under the working directory.
-        """
-        file_path = find_file(file_name, self.work_dir)
-        if not file_path:
-            raise FileNotFoundError(f"Could not find {file_name} under {self.work_dir}")
-        with open(file_path) as file_handle:
-            return json.load(file_handle)
-
     def _material(self) -> Dict[str, Any]:
         """
         The structure the run computed.
@@ -226,7 +219,7 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
         Reference:
             func: express.parsers.mixins.electronic.ElectronicDataMixin.total_energy
         """
-        return energy_in_electronvolts(property_record(self._get_results(), "total_energy"))
+        return energy_in_eV(property_record(self._get_results(), "total_energy"))
 
     def fermi_energy(self):
         """
@@ -235,7 +228,7 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
         Reference:
             func: express.parsers.mixins.electronic.ElectronicDataMixin.fermi_energy
         """
-        return energy_in_electronvolts(property_record(self._get_results(), "fermi_energy"))
+        return energy_in_eV(property_record(self._get_results(), "fermi_energy"))
 
     def nspins(self):
         """
@@ -254,7 +247,7 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
         Reference:
             func: express.parsers.mixins.electronic.ElectronicDataMixin.eigenvalues_at_kpoints
         """
-        return eigenvalues_in_electronvolts(property_record(self._get_results(), "eigenvalues_at_kpoints"))
+        return eigenvalues_in_eV(property_record(self._get_results(), "eigenvalues_at_kpoints"))
 
     def convergence_electronic(self):
         """
@@ -264,7 +257,7 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
             func: express.parsers.mixins.electronic.ElectronicDataMixin.convergence_electronic
         """
         record = property_record(self._get_results(), "convergence_electronic")
-        return convergence_energies_in_electronvolts(record)
+        return convergence_energies_in_eV(record)
 
     def total_energy_contributions(self):
         """
@@ -274,7 +267,7 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
             func: express.parsers.mixins.electronic.ElectronicDataMixin.total_energy_contributions
         """
         record = property_record(self._get_results(), "total_energy_contributions")
-        return energy_contributions_in_electronvolts(record)
+        return energy_contributions_in_eV(record)
 
     def ibz_k_points(self):
         """
@@ -311,7 +304,7 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
             func: express.parsers.mixins.ionic.IonicDataMixin.atomic_forces
         """
         record = property_record(self._get_results(), "atomic_forces")
-        return atomic_forces_in_electronvolt_per_angstrom(record)
+        return atomic_forces_in_eV_per_angstrom(record)
 
     def initial_lattice_vectors(self):
         """
@@ -351,10 +344,10 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
 
     def dos(self):
         """
-        Returns the total density of states written by the q3_dos shell unit. q3 does not project onto atomic
-        states, so the partial lists are empty.
+        Returns the total density of states the q3_dos shell unit adds to the results file as ESSE's
+        density_of_states record. q3 does not project onto atomic states, so the partial lists are empty.
 
         Reference:
             func: express.parsers.mixins.electronic.ElectronicDataMixin.dos
         """
-        return density_of_states_in_electronvolts(self._read_json_file(DENSITY_OF_STATES_FILE))
+        return density_of_states_in_eV(property_record(self._get_results(), "density_of_states"))

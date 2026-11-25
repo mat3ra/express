@@ -7,30 +7,44 @@ from express import ExPrESS
 from express.parsers.apps.q3.parser import Q3Parser
 from express.parsers.settings import Constant
 
-DENSITY_OF_STATES = {
-    "energies_ry": [-0.5, 0.0, 0.5],
-    "dos": [0.0, 13.6, 27.2],
-    "fermi_energy_ry": 0.25,
+DENSITY_OF_STATES_RECORD = {
+    "name": "density_of_states",
+    "xAxis": {"label": "energy", "units": "Ry"},
+    "yAxis": {"label": "density of states", "units": "states/unitcell"},
+    "xDataArray": [-0.5, 0.0, 0.5],
+    "yDataSeries": [[0.0, 13.6, 27.2]],
+    "legend": [],
 }
+
+
+def write_results(work_dir: str, records: list) -> None:
+    """
+    Writes records as the properties.records of "<work_dir>/outdir/q3_results.json".
+    """
+    outdir = os.path.join(work_dir, "outdir")
+    os.makedirs(outdir)
+    with open(os.path.join(outdir, "q3_results.json"), "w") as results_file:
+        json.dump({"properties": {"records": records}}, results_file)
 
 
 class Q3ParserDensityOfStatesTest(unittest.TestCase):
     """
-    Covers the density of states written by the q3_dos shell unit to q3_dos.json.
+    Covers the density of states the q3_dos shell unit adds to the q3 results file as ESSE's
+    density_of_states record.
     """
 
     def setUp(self):
         self.work_dir = tempfile.TemporaryDirectory()
-        with open(os.path.join(self.work_dir.name, "q3_dos.json"), "w") as density_of_states_file:
-            json.dump(DENSITY_OF_STATES, density_of_states_file)
+        fermi_energy = {"name": "fermi_energy", "units": "Ry", "value": 0.25}
+        write_results(self.work_dir.name, [fermi_energy, DENSITY_OF_STATES_RECORD])
 
     def tearDown(self):
         self.work_dir.cleanup()
 
-    def test_converts_energies_and_values_to_electronvolts(self):
+    def test_converts_energies_and_values_to_eV(self):
         density_of_states = Q3Parser(work_dir=self.work_dir.name).dos()
-        expected_energies = [energy * Constant.Ry for energy in DENSITY_OF_STATES["energies_ry"]]
-        expected_values = [value / Constant.Ry for value in DENSITY_OF_STATES["dos"]]
+        expected_energies = [energy * Constant.Ry for energy in DENSITY_OF_STATES_RECORD["xDataArray"]]
+        expected_values = [value / Constant.Ry for value in DENSITY_OF_STATES_RECORD["yDataSeries"][0]]
         for actual, expected in zip(density_of_states["energy"], expected_energies):
             self.assertAlmostEqual(actual, expected)
         for actual, expected in zip(density_of_states["total"], expected_values):
@@ -42,11 +56,32 @@ class Q3ParserDensityOfStatesTest(unittest.TestCase):
         express = ExPrESS("q3", work_dir=self.work_dir.name)
         density_of_states = express.property("density_of_states")
         self.assertEqual(density_of_states["name"], "density_of_states")
-        self.assertEqual(len(density_of_states["xDataArray"][0]), len(DENSITY_OF_STATES["energies_ry"]))
+        self.assertEqual(len(density_of_states["xDataArray"][0]), len(DENSITY_OF_STATES_RECORD["xDataArray"]))
         self.assertEqual(len(density_of_states["yDataSeries"]), 1)
         self.assertEqual(density_of_states["legend"], [{}])
 
-    def test_missing_file_raises(self):
+    def test_a_record_in_eV_is_kept_as_it_is(self):
+        record = dict(DENSITY_OF_STATES_RECORD, xAxis={"label": "energy", "units": "eV"})
+        with tempfile.TemporaryDirectory() as work_dir:
+            write_results(work_dir, [record])
+            density_of_states = Q3Parser(work_dir=work_dir).dos()
+        self.assertEqual(density_of_states["energy"], record["xDataArray"])
+        self.assertEqual(density_of_states["total"], record["yDataSeries"][0])
+
+    def test_unsupported_energy_units_raise(self):
+        record = dict(DENSITY_OF_STATES_RECORD, xAxis={"label": "energy", "units": "cm-1"})
+        with tempfile.TemporaryDirectory() as work_dir:
+            write_results(work_dir, [record])
+            with self.assertRaises(ValueError):
+                Q3Parser(work_dir=work_dir).dos()
+
+    def test_results_without_density_of_states_raise(self):
+        with tempfile.TemporaryDirectory() as work_dir:
+            write_results(work_dir, [{"name": "fermi_energy", "units": "Ry", "value": 0.25}])
+            with self.assertRaises(KeyError):
+                Q3Parser(work_dir=work_dir).dos()
+
+    def test_missing_results_file_raises(self):
         with tempfile.TemporaryDirectory() as empty_work_dir:
             with self.assertRaises(FileNotFoundError):
                 Q3Parser(work_dir=empty_work_dir).dos()
