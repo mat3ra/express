@@ -241,10 +241,15 @@ class EspressoParser(BaseParser, IonicDataMixin, ElectronicDataMixin, Reciprocal
         """
         Returns phonon dispersions.
 
+        NOTE: q-points are returned in crystal coordinates, converted from matdyn's cartesian 2pi/alat units with the
+        reciprocal lattice from the pw.x XML (__prefix__.xml), so that file has to be in the work directory.
+
         Reference:
             func: express.parsers.mixins.ionic.IonicDataMixin.phonon_dispersions
         """
-        return self.txt_parser.phonon_dispersions()
+        data = self.txt_parser.phonon_dispersions()
+        data["qpoints"] = np.dot(data["qpoints"], self.xml_parser.get_inverse_reciprocal_lattice_vectors()).tolist()
+        return data
 
     def _find_neb_dat_file(self):
         neb_path_file = find_file(NEB_PATH_FILE_SUFFIX, self.work_dir)
