@@ -9,7 +9,7 @@ from express.parsers.mixins.electronic import ElectronicDataMixin
 from express.parsers.mixins.ionic import IonicDataMixin
 from express.parsers.mixins.reciprocal import ReciprocalDataMixin
 from express.parsers.settings import Constant
-from express.parsers.utils import find_file
+from express.parsers.utils import find_files_by_name_substring
 
 # Express returns energies in eV and forces in eV/angstrom. Q3 writes each
 # quantity as an ESSE record whose units field names the source unit
@@ -180,6 +180,22 @@ def density_of_states_in_eV(record: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def find_results_file(work_dir: str) -> str:
+    """
+    The one "<outdir>/<prefix>_results.json" file under work_dir.
+
+    Only names that end in the suffix count: a substring match would also take copies such as
+    "q3_results.json-1", the earlier results kept when a later unit rewrote the file.
+    """
+    candidates = find_files_by_name_substring(RESULTS_FILE_SUFFIX, work_dir)
+    results_files = sorted(path for path in candidates if path.endswith(RESULTS_FILE_SUFFIX))
+    if not results_files:
+        raise FileNotFoundError(f"Could not find a q3 results file (*{RESULTS_FILE_SUFFIX}) under {work_dir}")
+    if len(results_files) > 1:
+        raise ValueError(f"Found more than one q3 results file (*{RESULTS_FILE_SUFFIX}): {results_files}")
+    return results_files[0]
+
+
 class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMixin):
     """
     Q3 parser class.
@@ -197,12 +213,7 @@ class Q3Parser(BaseParser, IonicDataMixin, ElectronicDataMixin, ReciprocalDataMi
         Reference: lib/q3/docs/io_reference.md, section 4.1, and schemas/q3/results.json.
         """
         if self._results is None:
-            results_file = find_file(RESULTS_FILE_SUFFIX, self.work_dir)
-            if not results_file:
-                raise FileNotFoundError(
-                    f"Could not find a q3 results file (*{RESULTS_FILE_SUFFIX}) under {self.work_dir}"
-                )
-            with open(results_file) as results_handle:
+            with open(find_results_file(self.work_dir)) as results_handle:
                 self._results = json.load(results_handle)
         return self._results
 

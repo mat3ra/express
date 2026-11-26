@@ -86,6 +86,24 @@ class Q3ParserDensityOfStatesTest(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 Q3Parser(work_dir=empty_work_dir).dos()
 
+    def test_backup_copy_of_results_file_is_ignored(self):
+        with tempfile.TemporaryDirectory() as work_dir:
+            write_results(work_dir, [DENSITY_OF_STATES_RECORD])
+            backup_path = os.path.join(work_dir, "outdir", "q3_results.json-1")
+            with open(backup_path, "w") as backup_file:
+                json.dump({"properties": {"records": []}}, backup_file)
+            density_of_states = Q3Parser(work_dir=work_dir).dos()
+        self.assertEqual(len(density_of_states["energy"]), len(DENSITY_OF_STATES_RECORD["xDataArray"]))
+
+    def test_more_than_one_results_file_raises(self):
+        with tempfile.TemporaryDirectory() as work_dir:
+            write_results(work_dir, [DENSITY_OF_STATES_RECORD])
+            other_results_path = os.path.join(work_dir, "outdir", "other_results.json")
+            with open(other_results_path, "w") as other_results_file:
+                json.dump({"properties": {"records": []}}, other_results_file)
+            with self.assertRaises(ValueError):
+                Q3Parser(work_dir=work_dir).dos()
+
 
 if __name__ == "__main__":
     unittest.main()
